@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: dummytube-itel
+    runtime: docker
+    dockerfilePath: ./Dockerfile.render
+    plan: free
+    healthCheckPath: /test
+    disk:
+      name: cache
+      mountPath: /app/cache
+      sizeGB: 1
+    envVars:
+      - key: PORT
+        value: 10000

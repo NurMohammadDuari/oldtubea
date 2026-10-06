@@ -1,0 +1,20 @@
+# binaries + runtime (rebuilt via get-cloudflared.sh / pip)
+cloudflared
+__pycache__/
+*.pyc
+
+# caches + logs (phone-generated, never commit)
+cache/
+tcache/
+SD_CARD/
+SD_TEST/
+*.log
+*.part
+*.lock
+*.tmp
+*.webm
+tunnel*.log
+dummy.log
+server.log
+pc.log
+PLAY_ORDER.txt

@@ -1,0 +1,13 @@
+ITEL 5031 STEPS - DO ON PHONE
+1. Put SD card 4-32GB FAT32 in phone.
+2. On PC run dummy-yt.py + run-dummy.sh, copy https://...trycloudflare.com link.
+3. On phone browser type that link. Open /test - must say OK.
+4. Home -> type search (e.g. music) -> Go.
+5. Tap thumbnail you like -> Watch page.
+6. Tap Play 144p. Wait 60-90s. Player opens from SD buffer.
+7. If low memory: back, try Audio only.
+8. Long video 40min? Watch part by part, not full.
+
+PC START:
+python3 dummy-yt.py
+./run-dummy.sh
