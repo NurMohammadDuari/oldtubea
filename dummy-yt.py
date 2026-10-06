@@ -433,7 +433,9 @@ class H(http.server.BaseHTTPRequestHandler):
             if not query: return self.send_html(page("Search","<p>Empty.</p>"))
             entries = ysearch(query, 8)
             if not entries: return self.send_html(page("No result","<p>No result.</p>"))
-            b = f"<p><b>{esc(query,30)}</b> {len(entries)} found</p>"
+            qe = urllib.parse.quote(query)
+            b = f"<p><b>Videos</b> | <a href='/web?q={qe}'>All</a> | <a href='/webimg?q={qe}'>Images</a> | <a href='/webnews?q={qe}'>News</a></p>"
+            b += f"<p><b>{esc(query,30)}</b> {len(entries)} found</p>"
             for e in entries: b += item_html(e)
             return self.send_html(page(query, b))
         if u.path=="/web":
