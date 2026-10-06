@@ -6,6 +6,7 @@ __pycache__/
 # caches + logs (phone-generated, never commit)
 cache/
 tcache/
+*.url
 SD_CARD/
 SD_TEST/
 *.log

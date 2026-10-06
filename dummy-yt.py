@@ -612,7 +612,7 @@ class H(http.server.BaseHTTPRequestHandler):
         # PC realtime monitor - auto refresh, full details
         try:
             import subprocess as sp
-            du = sp.run("du -sh cache tcache 2>/dev/null; ls -lh cache/*.mp4 cache/*.mp3 2>/dev/null | tail -n 10", shell=True, capture_output=True, text=True, timeout=5).stdout
+            du = sp.run('du -sh cache 2>/dev/null; echo "thumbs: $(ls cache/tcache 2>/dev/null | wc -l)"; ls -lh cache/*.mp4 cache/*.mp3 2>/dev/null | tail -n 10', shell=True, capture_output=True, text=True, timeout=5).stdout
         except: du = ""
         with LOCK:
             logs = list(LOGS)[:40]
