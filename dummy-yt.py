@@ -172,9 +172,57 @@ def websearch(query, n=8):
 
 def web_tabs(query, active="all"):
     qe = urllib.parse.quote(query)
-    a = "<b>All</b>" if active=="all" else f'<a href="/web?q={qe}">All</a>'
-    i = "<b>Images</b>" if active=="images" else f'<a href="/webimg?q={qe}">Images</a>'
-    return f"<p>{a} | {i}</p>"
+    t = lambda k, u, label: f"<b>{label}</b>" if active==k else f'<a href="{u}?q={qe}">{label}</a>'
+    return f"<p>{t('all','/web','All')} | {t('images','/webimg','Images')} | {t('videos','/search','Videos')} | {t('news','/webnews','News')}</p>"
+
+def gsuggest(query, n=5):
+    try:
+        req = urllib.request.Request("https://suggestqueries.google.com/complete/search?client=firefox&q=" + urllib.parse.quote(query), headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64)"})
+        with urllib.request.urlopen(req, timeout=10) as r:
+            data = json.loads(r.read(50000).decode("utf-8", "ignore"))
+        return [s for s in data[1][:n] if isinstance(s, str)]
+    except: return []
+
+def instant_answer(query):
+    try:
+        req = urllib.request.Request("https://api.duckduckgo.com/?" + urllib.parse.urlencode({"q": query, "format": "json", "no_html": 1, "skip_disambig": 1}), headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64)"})
+        with urllib.request.urlopen(req, timeout=10) as r:
+            d = json.loads(r.read(100000).decode("utf-8", "ignore"))
+        txt = (d.get("AbstractText") or "")[:200]
+        src = d.get("AbstractSource") or ""
+        if txt: return f"<p><b>{esc(txt,200)}</b><br/><small>Source: {esc(src,30)}</small></p>"
+        at = d.get("Answer") or ""
+        if at: return f"<p><b>{esc(re.sub('<[^>]+>','',at),100)}</b></p>"
+    except: pass
+    return ""
+
+def gnews(query, n=8):
+    ck = f"gnews|{query}|{n}"
+    ce = SEARCH_CACHE.get(ck)
+    if ce and time.time()-ce[0] < 900:
+        blog("CACHE>", f"gnews '{query}' hit")
+        return ce[1]
+    blog("GNEWS>", f"'{query}'")
+    out = []
+    try:
+        req = urllib.request.Request("https://www.bing.com/news/search?" + urllib.parse.urlencode({"q": query, "format": "rss"}), headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64)"})
+        with urllib.request.urlopen(req, timeout=20) as r:
+            xml = r.read(300000).decode("utf-8", "ignore")
+        for m in list(re.finditer(r"<item>.*?<title>(.*?)</title>.*?<link>(.*?)</link>", xml, re.S))[:n]:
+            title = re.sub(r"<!\[CDATA\[|\]\]>", "", m.group(1)).strip()[:70]
+            link = m.group(2).strip()
+            # unwrap bing redirect to real article (phone opens direct)
+            if "url=" in link:
+                try: link = urllib.parse.unquote(urllib.parse.parse_qs(urllib.parse.urlparse(link.replace("&amp;", "&")).query).get("url", [link])[0])
+                except: pass
+            link = link[:300]
+            if title and link.startswith("http"):
+                out.append({"title": title, "url": link, "pub": ""})
+        SEARCH_CACHE[ck] = (time.time(), out)
+        blog("GNEWS<", f"'{query}' {len(out)} news")
+    except Exception as e:
+        blog("FAIL<", f"gnews '{query}' {e}")
+    return out
 
 def webimages(query, n=8):
     ck = f"webimg|{query}|{n}"
@@ -365,8 +413,14 @@ class H(http.server.BaseHTTPRequestHandler):
             if not query: return self.send_html(page("Web","<p>Type a word above, tap Web.</p>"))
             res = websearch(query, 8)
             if not res: return self.send_html(page("No result","<p>No web result. Try other words.</p>"))
-            b = f"<p><b>Web: {esc(query,30)}</b> {len(res)} found</p>"
-            b = web_tabs(query, "all") + b
+            b = web_tabs(query, "all") + f"<p><b>Web: {esc(query,30)}</b> {len(res)} found</p>"
+            try:
+                sug = gsuggest(query)
+                if sug:
+                    b += "<p><small>Try: " + " ".join(f'<a href="/web?q={urllib.parse.quote(s)}">{esc(s,25)}</a>' for s in sug[:4]) + "</small></p>"
+                ans = instant_answer(query)
+                if ans: b += ans
+            except: pass
             for r in res:
                 host = esc(urllib.parse.urlparse(r['url']).netloc, 30)
                 b += f"""<p><a href="{esc(r['url'],200)}">{esc(r['title'],60)}</a><br/><small>{host}</small><br/><small>{esc(r['snip'],140)}</small></p>"""
@@ -380,6 +434,15 @@ class H(http.server.BaseHTTPRequestHandler):
             for r in res:
                 b += f"""<p><a href="{esc(r['image'],300)}"><img src="/imgthumb?h={r.get('h','')}" width="120"/><br/>{esc(r['title'],50)}</a></p>"""
             return self.send_html(page(query + " images", b))
+        if u.path=="/webnews":
+            query = q.get("q",[""])[0].strip()
+            if not query: return self.send_html(page("News","<p>Type a word above, tap Web.</p>"))
+            res = gnews(query, 8)
+            if not res: return self.send_html(page("No news","<p>No news. Try other words.</p>"))
+            b = web_tabs(query, "news") + f"<p><b>News: {esc(query,30)}</b></p>"
+            for r in res:
+                b += f"""<p><a href="{esc(r['url'],300)}">{esc(r['title'],70)}</a><br/><small>{esc(r['pub'],16)}</small></p>"""
+            return self.send_html(page(query + " news", b))
         if u.path=="/imgthumb":
             h = re.sub(r'[^a-f0-9]','', q.get("h",[""])[0])[:12]
             fp = os.path.join(TCACHE, "img_" + h + ".jpg")
