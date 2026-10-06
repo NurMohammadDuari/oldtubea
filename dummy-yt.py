@@ -170,6 +170,59 @@ def websearch(query, n=8):
         blog("FAIL<", f"web '{query}' {e}")
     return out
 
+def web_tabs(query, active="all"):
+    qe = urllib.parse.quote(query)
+    a = "<b>All</b>" if active=="all" else f'<a href="/web?q={qe}">All</a>'
+    i = "<b>Images</b>" if active=="images" else f'<a href="/webimg?q={qe}">Images</a>'
+    return f"<p>{a} | {i}</p>"
+
+def webimages(query, n=8):
+    ck = f"webimg|{query}|{n}"
+    ce = SEARCH_CACHE.get(ck)
+    if ce and time.time()-ce[0] < 900:
+        blog("CACHE>", f"webimg '{query}' hit")
+        return ce[1]
+    blog("WEBIMG>", f"ddg images '{query}'")
+    out = []
+    try:
+        req = urllib.request.Request("https://duckduckgo.com/?q=" + urllib.parse.quote(query) + "&iax=images&ia=images", headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64)"})
+        with urllib.request.urlopen(req, timeout=20) as r:
+            main = r.read(500000).decode("utf-8", "ignore")
+        m = re.search(r"vqd=([\d-]+)", main)
+        if not m: m = re.search(r"vqd['\"]?\s*[:=]\s*['\"]?([\d-]+)", main)
+        vqd = m.group(1) if m else ""
+        if vqd:
+            iq = urllib.parse.urlencode({"l": "wt-wt", "o": "json", "q": query, "vqd": vqd, "f": ",,,", "p": "1"})
+            req2 = urllib.request.Request("https://duckduckgo.com/i.js?" + iq, headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64)", "Referer": "https://duckduckgo.com/"})
+            with urllib.request.urlopen(req2, timeout=20) as r2:
+                data = json.loads(r2.read(500000).decode("utf-8", "ignore"))
+            for it in data.get("results", [])[:n]:
+                img = it.get("image", "")
+                thumb = it.get("thumbnail", "") or img
+                title = (it.get("title", "") or "")[:60]
+                if img.startswith("http"):
+                    out.append({"image": img[:300], "thumb": thumb[:300], "title": title})
+        # parallel small thumbs for phone
+        def _t(o):
+            try:
+                h = hashlib.md5(o["image"].encode()).hexdigest()[:12]
+                o["h"] = h
+                fp = os.path.join(TCACHE, "img_" + h + ".jpg")
+                if not (os.path.exists(fp) and os.path.getsize(fp) > 500):
+                    rq = urllib.request.Request(o["thumb"], headers={"User-Agent": "Mozilla/5.0", "Referer": "https://duckduckgo.com/"})
+                    with urllib.request.urlopen(rq, timeout=12) as r, open(fp + ".tmp", "wb") as f:
+                        f.write(r.read(300000))
+                    run(f'ffmpeg -y -v error -i {shlex.quote(fp + ".tmp")} -vf scale=120:-1 -q:v 14 {shlex.quote(fp)}', 15)
+                    try: os.remove(fp + ".tmp")
+                    except: pass
+            except: pass
+        list(TPOOL.map(_t, out))
+        SEARCH_CACHE[ck] = (time.time(), out)
+        blog("WEBIMG<", f"'{query}' {len(out)} images")
+    except Exception as e:
+        blog("FAIL<", f"webimg '{query}' {e}")
+    return out
+
 def item_html(e):
     vid = e.get("id",""); title = esc(e.get("title","Video"),60)
     ch = esc(e.get("channel") or e.get("uploader",""),30)
@@ -313,10 +366,25 @@ class H(http.server.BaseHTTPRequestHandler):
             res = websearch(query, 8)
             if not res: return self.send_html(page("No result","<p>No web result. Try other words.</p>"))
             b = f"<p><b>Web: {esc(query,30)}</b> {len(res)} found</p>"
+            b = web_tabs(query, "all") + b
             for r in res:
                 host = esc(urllib.parse.urlparse(r['url']).netloc, 30)
                 b += f"""<p><a href="{esc(r['url'],200)}">{esc(r['title'],60)}</a><br/><small>{host}</small><br/><small>{esc(r['snip'],140)}</small></p>"""
             return self.send_html(page(query, b))
+        if u.path=="/webimg":
+            query = q.get("q",[""])[0].strip()
+            if not query: return self.send_html(page("Images","<p>Type a word above, tap Web.</p>"))
+            res = webimages(query, 8)
+            if not res: return self.send_html(page("No images","<p>No images. Try other words.</p>"))
+            b = web_tabs(query, "images") + f"<p><b>Images: {esc(query,30)}</b></p>"
+            for r in res:
+                b += f"""<p><a href="{esc(r['image'],300)}"><img src="/imgthumb?h={r.get('h','')}" width="120"/><br/>{esc(r['title'],50)}</a></p>"""
+            return self.send_html(page(query + " images", b))
+        if u.path=="/imgthumb":
+            h = re.sub(r'[^a-f0-9]','', q.get("h",[""])[0])[:12]
+            fp = os.path.join(TCACHE, "img_" + h + ".jpg")
+            if not os.path.exists(fp): self.send_response(404); self.end_headers(); return
+            return self.serve_file(fp, "image/jpeg")
         if u.path=="/thumb":
             vid = re.sub(r'[^A-Za-z0-9_-]','', q.get("v",[""])[0])[:20]
             fp = os.path.join(TCACHE, vid+".jpg")
