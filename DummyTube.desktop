@@ -1,9 +1,0 @@
-[Desktop Entry]
-Name=DummyTube Itel
-Comment=Start DummyTube server + live URL for Itel 5031
-Exec=/home/mint/Desktop/DummyTube-Itel/start-all.sh
-Path=/home/mint/Desktop/DummyTube-Itel
-Icon=video-x-generic
-Terminal=true
-Type=Application
-Categories=AudioVideo;Network;
