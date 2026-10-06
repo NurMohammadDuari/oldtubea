@@ -271,6 +271,34 @@ def webimages(query, n=8):
         blog("FAIL<", f"webimg '{query}' {e}")
     return out
 
+def read_page(url):
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64)"})
+        with urllib.request.urlopen(req, timeout=20) as r:
+            ctype = r.headers.get("Content-Type", "")
+            if "html" not in ctype and "text" not in ctype:
+                return None  # not a page (file download) - open direct
+            html = r.read(300000).decode("utf-8", "ignore")
+        title = re.search(r"<title[^>]*>(.*?)</title>", html, re.S | re.I)
+        title = re.sub(r"<[^>]+>", "", title.group(1)).strip()[:60] if title else "Page"
+        html = re.sub(r"(?is)<(script|style|nav|footer|header|form|iframe|noscript)[^>]*>.*?</\1>", " ", html)
+        imgs = []
+        for m in re.finditer(r'<img[^>]+src="([^"]+)"', html[:200000], re.I):
+            src = m.group(1)
+            if src.startswith("//"): src = "https:" + src
+            elif src.startswith("/"):
+                try: src = urllib.parse.urljoin(url, src)
+                except: continue
+            if src.startswith("http") and len(imgs) < 3 and not src.lower().endswith(".svg"):
+                imgs.append(src[:300])
+            if len(imgs) >= 3: break
+        text = re.sub(r"(?is)<(a)[^>]*>", " ", html)
+        text = re.sub(r"<[^>]+>", " ", text)
+        text = re.sub(r"\s+", " ", text).strip()[:1500]
+        return {"title": title, "text": text, "imgs": imgs}
+    except:
+        return None
+
 def item_html(e):
     vid = e.get("id",""); title = esc(e.get("title","Video"),60)
     ch = esc(e.get("channel") or e.get("uploader",""),30)
@@ -423,7 +451,8 @@ class H(http.server.BaseHTTPRequestHandler):
             except: pass
             for r in res:
                 host = esc(urllib.parse.urlparse(r['url']).netloc, 30)
-                b += f"""<p><a href="{esc(r['url'],200)}">{esc(r['title'],60)}</a><br/><small>{host}</small><br/><small>{esc(r['snip'],140)}</small></p>"""
+                go = "/go?u=" + urllib.parse.quote(r['url'], safe="")
+                b += f"""<p><a href="{go}">{esc(r['title'],60)}</a><br/><small>{host}</small><br/><small>{esc(r['snip'],140)}</small></p>"""
             return self.send_html(page(query, b))
         if u.path=="/webimg":
             query = q.get("q",[""])[0].strip()
@@ -441,9 +470,37 @@ class H(http.server.BaseHTTPRequestHandler):
             if not res: return self.send_html(page("No news","<p>No news. Try other words.</p>"))
             b = web_tabs(query, "news") + f"<p><b>News: {esc(query,30)}</b></p>"
             for r in res:
-                b += f"""<p><a href="{esc(r['url'],300)}">{esc(r['title'],70)}</a><br/><small>{esc(r['pub'],16)}</small></p>"""
+                go = "/go?u=" + urllib.parse.quote(r['url'], safe="")
+                b += f"""<p><a href="{go}">{esc(r['title'],70)}</a><br/><small>{esc(r['pub'],16)}</small></p>"""
             return self.send_html(page(query + " news", b))
-        if u.path=="/imgthumb":
+        if u.path=="/go":
+            url = q.get("u",[""])[0].strip()[:300]
+            if not url.startswith("http"): return self.send_html(page("Error","<p>Bad link.</p>"))
+            art = read_page(url)
+            if art is None:  # file or fetch fail - send phone to original
+                return self.send_html(page("Open", f"<p><a href='{esc(url,300)}'>Open original</a></p><p><small>File download - saves to SD.</small></p>"))
+            b = f"<p><b>{esc(art['title'],60)}</b><br/><small>{esc(urllib.parse.urlparse(url).netloc,30)}</small></p>"
+            for im in art["imgs"]:
+                h = hashlib.md5(im.encode()).hexdigest()[:12]
+                fp = os.path.join(TCACHE, "go_" + h + ".jpg")
+                if not (os.path.exists(fp) and os.path.getsize(fp) > 500):
+                    try:
+                        rq = urllib.request.Request(im, headers={"User-Agent": "Mozilla/5.0"})
+                        with urllib.request.urlopen(rq, timeout=10) as rr, open(fp + ".tmp", "wb") as f:
+                            f.write(rr.read(200000))
+                        run(f'ffmpeg -y -v error -i {shlex.quote(fp + ".tmp")} -vf scale=220:-1 -q:v 14 {shlex.quote(fp)}', 15)
+                        try: os.remove(fp + ".tmp")
+                        except: pass
+                    except: pass
+                if os.path.exists(fp):
+                    b += f'<p><img src="/gothumb?h={h}" width="220"/></p>'
+            b += f"<p>{esc(art['text'],1500)}</p><p><small><a href='{esc(url,300)}'>Original page</a></small></p>"
+            return self.send_html(page(art["title"][:40], b))
+        if u.path=="/gothumb":
+            h = re.sub(r'[^a-f0-9]','', q.get("h",[""])[0])[:12]
+            fp = os.path.join(TCACHE, "go_" + h + ".jpg")
+            if not os.path.exists(fp): self.send_response(404); self.end_headers(); return
+            return self.serve_file(fp, "image/jpeg")
             h = re.sub(r'[^a-f0-9]','', q.get("h",[""])[0])[:12]
             fp = os.path.join(TCACHE, "img_" + h + ".jpg")
             if not os.path.exists(fp): self.send_response(404); self.end_headers(); return
