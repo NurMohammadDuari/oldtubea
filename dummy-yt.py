@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""DummyTube full YT-like for Itel 5031 - 240px, <15KB pages, 1MB free.
+"""OldTubea full YT-like for Itel 5031 - 240px, <15KB pages, 1MB free.
 Home feed + Search + Watch + Channel + Related + Description, real via yt-dlp.
 """
 import http.server, urllib.parse, urllib.request, subprocess, os, hashlib, glob, shutil, json, re, time, collections, threading, shlex, concurrent.futures
@@ -46,7 +46,7 @@ def fmt_views(v):
     except: return ""
 
 def nav():
-    return """<center><b><font color="red">Dummy</font>Tube</b><br/><small>[<a href="/">Home</a>] [<a href="/trending">Trending</a>] [<a href="/web?q=news">Web</a>] [<a href="/pc">PC</a>] [<a href="/test">Test</a>]<br/>[<a href="/search?q=music">Music</a>] [<a href="/search?q=news">News</a>] [<a href="/search?q=waz">Waz</a>] [<a href="/search?q=drama">Drama</a>] [<a href="/search?q=cricket">Cricket</a>]</small><form action="/search" method="get"><input name="q" size="12"/><input type="submit" value="Go"/></form><form action="/web" method="get"><input name="q" size="12"/><input type="submit" value="Web"/></form></center><hr/>"""
+    return """<center><b><font color="red">Old</font>Tubea</b><br/><small>[<a href="/">Home</a>] [<a href="/trending">Trending</a>] [<a href="/web?q=news">Web</a>] [<a href="/pc">PC</a>] [<a href="/test">Test</a>]<br/>[<a href="/search?q=music">Music</a>] [<a href="/search?q=news">News</a>] [<a href="/search?q=waz">Waz</a>] [<a href="/search?q=drama">Drama</a>] [<a href="/search?q=cricket">Cricket</a>]</small><form action="/search" method="get"><input name="q" size="12"/><input type="submit" value="Go"/></form><form action="/web" method="get"><input name="q" size="12"/><input type="submit" value="Web"/></form></center><hr/>"""
 
 def page(title, body, refresh=0):
     mr = f'<meta http-equiv="refresh" content="{refresh}"/>' if refresh else ""
@@ -575,7 +575,7 @@ class H(http.server.BaseHTTPRequestHandler):
         with LOCK:
             logs = list(LOGS)[:40]
         rows = "".join(f"<tr><td><small>{esc(l,120)}</small></td></tr>" for l in logs) or "<tr><td>No activity yet. Search from phone.</td></tr>"
-        html = f"""<html><head><meta charset="utf-8"/><meta http-equiv="refresh" content="3"/><title>PC Monitor</title></head><body><h2>DummyTube PC Monitor - realtime</h2><p><a href="/">Phone Home</a> | <a href="/trending">Trending</a> | auto-refresh 3s | {time.strftime('%H:%M:%S')}</p><h3>What code is doing now</h3><table border="1" width="100%">{rows}</table><h3>Cache / ffmpeg outputs</h3><pre>{esc(du,2000)}</pre><h3>Legend</h3><pre>PHONE&gt; = Itel tapped a page
+        html = f"""<html><head><meta charset="utf-8"/><meta http-equiv="refresh" content="3"/><title>PC Monitor</title></head><body><h2>OldTubea PC Monitor - realtime</h2><p><a href="/">Phone Home</a> | <a href="/trending">Trending</a> | auto-refresh 3s | {time.strftime('%H:%M:%S')}</p><h3>What code is doing now</h3><table border="1" width="100%">{rows}</table><h3>Cache / ffmpeg outputs</h3><pre>{esc(du,2000)}</pre><h3>Legend</h3><pre>PHONE&gt; = Itel tapped a page
 YTDLP&gt; = yt-dlp searching/info/download
 FFMPEG&gt; = ffmpeg resizing thumb or video
 RUN&gt;/DONE&lt; = command + time + result</pre></body></html>"""
@@ -603,5 +603,5 @@ RUN&gt;/DONE&lt; = command + time + result</pre></body></html>"""
         except: pass
 
 if __name__=="__main__":
-    print(f"DummyTube full on http://0.0.0.0:{PORT}")
+    print(f"OldTubea full on http://0.0.0.0:{PORT}")
     http.server.ThreadingHTTPServer(("0.0.0.0",PORT),H).serve_forever()

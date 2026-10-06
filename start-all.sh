@@ -1,5 +1,5 @@
 #!/bin/bash
-# DummyTube one-tap starter: server + Cloudflare live URL + open start pages
+# OldTubea one-tap starter: server + Cloudflare live URL + open start pages
 cd "$(dirname "$0")"
 fuser -k 8081/tcp 2>/dev/null; sleep 1
 python3 dummy-yt.py > dummy.log 2>&1 &

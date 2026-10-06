@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=OldTubea
+Comment=Start OldTubea server + live URL for Itel 5031
+Exec=/home/mint/Desktop/oldtubea/start-all.sh
+Path=/home/mint/Desktop/oldtubea
+Icon=video-x-generic
+Terminal=true
+Type=Application
+Categories=AudioVideo;Network;

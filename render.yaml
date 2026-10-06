@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: dummytube-itel
+    name: oldtubea
     runtime: docker
     dockerfilePath: ./Dockerfile.render
     plan: free

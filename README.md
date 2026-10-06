@@ -1,4 +1,4 @@
-# DummyTube for Itel 5031 - real YT-like for dummy phone
+# OldTubea - real YT-like for dummy phone (Itel 5031)
 
 Looks and works like YouTube, but tiny for 240px screen, 4MB RAM, 1MB free internal.
 
@@ -29,7 +29,7 @@ Auto-refresh 3s. Shows PHONE> taps, YTDLP> search/info/download, FFMPEG> thumb/v
 
 ## Run live (every time)
 ```
-cd ~/Desktop/DummyTube-Itel
+cd ~/Desktop/oldtubea
 python3 dummy-yt.py
 # new terminal:
 ./run-dummy.sh
@@ -60,7 +60,7 @@ Open that URL on Itel browser -> `/test` must show OK -> Search -> Watch -> Play
 - Yours: same - PC does yt-dlp+ffmpeg, phone only shows tiny page + progressive MP4 via Cloudflare Tunnel.
 
 ## Host on Render.com
-Files `Dockerfile.render:1` + `render.yaml:1` added. Push this folder to GitHub, Render -> New Web Service -> Docker, free plan ok. Health `/test`, disk 1GB for `cache/`.
+Files `Dockerfile.render:1` + `render.yaml:1` added. GitHub repo `NurMohammadDuari/oldtubea`, Render -> New Web Service -> connect that repo -> Docker, free plan ok. Health `/test`, disk 1GB for `cache/`.
 Limits: free sleeps on idle (first phone tap slow), ephemeral converts redo after restart, request must return fast - ours does (Working page + background thread). TLS cert is modern ECDSA - same Itel warning as Cloudflare: test `/test` on phone, use `http` fallback if `https` gives server error.
 
 ## Troubleshoot
