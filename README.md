@@ -46,6 +46,7 @@ Open that URL on Itel browser -> `/test` must show OK -> Search -> Watch -> Play
 
 ## What you get - real YT-like, no hardcoded
 - Home `/` shows YOUR recent watches + categories, no fixed videos. You search, you decide.
+- Web `/web?q=` real web search via DuckDuckGo HTML, 8 results with snippet, tiny pages. Nav has Web box next to Go box.
 - Trending `/trending` live `ytsearch trending` 8 results.
 - Search `/search?q=` 8 real results with thumb 120px ~2KB, duration, channel, views.
 - Watch `/watch?v=` title, views, channel, description 200ch, 1-min 3GP Parts for 1MB phone, Part1 prefetches on open so play feels like stream, Up next 3 related.

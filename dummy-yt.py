@@ -46,7 +46,7 @@ def fmt_views(v):
     except: return ""
 
 def nav():
-    return """<center><b><font color="red">Dummy</font>Tube</b><br/><small>[<a href="/">Home</a>] [<a href="/trending">Trending</a>] [<a href="/pc">PC</a>] [<a href="/test">Test</a>]<br/>[<a href="/search?q=music">Music</a>] [<a href="/search?q=news">News</a>] [<a href="/search?q=waz">Waz</a>] [<a href="/search?q=drama">Drama</a>] [<a href="/search?q=cricket">Cricket</a>]</small><form action="/search" method="get"><input name="q" size="12"/><input type="submit" value="Go"/></form></center><hr/>"""
+    return """<center><b><font color="red">Dummy</font>Tube</b><br/><small>[<a href="/">Home</a>] [<a href="/trending">Trending</a>] [<a href="/web?q=news">Web</a>] [<a href="/pc">PC</a>] [<a href="/test">Test</a>]<br/>[<a href="/search?q=music">Music</a>] [<a href="/search?q=news">News</a>] [<a href="/search?q=waz">Waz</a>] [<a href="/search?q=drama">Drama</a>] [<a href="/search?q=cricket">Cricket</a>]</small><form action="/search" method="get"><input name="q" size="12"/><input type="submit" value="Go"/></form><form action="/web" method="get"><input name="q" size="12"/><input type="submit" value="Web"/></form></center><hr/>"""
 
 def page(title, body, refresh=0):
     mr = f'<meta http-equiv="refresh" content="{refresh}"/>' if refresh else ""
@@ -131,6 +131,44 @@ def vinfo(vid):
         if info["thumb"]: thumb_small(vid, info["thumb"])
         return info
     except: return {"title":"Video","channel":"?","views":0,"dur":"","desc":""}
+
+def websearch(query, n=8):
+    ck = f"web|{query}|{n}"
+    ce = SEARCH_CACHE.get(ck)
+    if ce and time.time()-ce[0] < 900:
+        blog("CACHE>", f"web '{query}' hit")
+        return ce[1]
+    blog("WEB>", f"ddg '{query}'")
+    out = []
+    try:
+        data = urllib.parse.urlencode({"q": query}).encode()
+        req = urllib.request.Request("https://html.duckduckgo.com/html/", data=data, headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64)"})
+        with urllib.request.urlopen(req, timeout=20) as r:
+            html = r.read(400000).decode("utf-8", "ignore")
+        for m in re.finditer(r'<a[^>]+class="result__a"[^>]*href="([^"]+)"[^>]*>(.*?)</a>.*?(?:<a[^>]*class="result__snippet"[^>]*>(.*?)</a>|<td[^>]*class="result-snippet"[^>]*>(.*?)</td>)', html, re.S):
+            link, title, sn1, sn2 = m.group(1), m.group(2), m.group(3), m.group(4)
+            link = urllib.parse.unquote(link)
+            if link.startswith("//duckduckgo.com/l/?uddg="):
+                link = urllib.parse.parse_qs(urllib.parse.urlparse(link).query).get("uddg", [link])[0]
+            title = re.sub(r"<[^>]+>", "", title).strip()
+            snip = re.sub(r"<[^>]+>", "", (sn1 or sn2 or "")).strip()[:140]
+            if title and link.startswith("http"):
+                out.append({"title": title[:70], "url": link[:200], "snip": snip})
+            if len(out) >= n: break
+        # fallback pattern if ddg changes markup
+        if not out:
+            for m in re.finditer(r'result__a[^>]*href="([^"]+)"[^>]*>([^<]+)<', html):
+                link, title = urllib.parse.unquote(m.group(1)), m.group(2).strip()
+                if link.startswith("//duckduckgo.com/l/?uddg="):
+                    link = urllib.parse.parse_qs(urllib.parse.urlparse(link).query).get("uddg", [link])[0]
+                if title and link.startswith("http"):
+                    out.append({"title": title[:70], "url": link[:200], "snip": ""})
+                if len(out) >= n: break
+        SEARCH_CACHE[ck] = (time.time(), out)
+        blog("WEB<", f"'{query}' {len(out)} results")
+    except Exception as e:
+        blog("FAIL<", f"web '{query}' {e}")
+    return out
 
 def item_html(e):
     vid = e.get("id",""); title = esc(e.get("title","Video"),60)
@@ -268,6 +306,16 @@ class H(http.server.BaseHTTPRequestHandler):
             if not entries: return self.send_html(page("No result","<p>No result.</p>"))
             b = f"<p><b>{esc(query,30)}</b> {len(entries)} found</p>"
             for e in entries: b += item_html(e)
+            return self.send_html(page(query, b))
+        if u.path=="/web":
+            query = q.get("q",[""])[0].strip()
+            if not query: return self.send_html(page("Web","<p>Type a word above, tap Web.</p>"))
+            res = websearch(query, 8)
+            if not res: return self.send_html(page("No result","<p>No web result. Try other words.</p>"))
+            b = f"<p><b>Web: {esc(query,30)}</b> {len(res)} found</p>"
+            for r in res:
+                host = esc(urllib.parse.urlparse(r['url']).netloc, 30)
+                b += f"""<p><a href="{esc(r['url'],200)}">{esc(r['title'],60)}</a><br/><small>{host}</small><br/><small>{esc(r['snip'],140)}</small></p>"""
             return self.send_html(page(query, b))
         if u.path=="/thumb":
             vid = re.sub(r'[^A-Za-z0-9_-]','', q.get("v",[""])[0])[:20]
