@@ -7,7 +7,8 @@ import http.server, urllib.parse, urllib.request, subprocess, os, hashlib, glob,
 PORT = int(os.environ.get("PORT", "8081"))
 BASE = os.path.dirname(os.path.abspath(__file__))
 CACHE = os.path.join(BASE, "cache")
-TCACHE = os.path.join(BASE, "tcache")
+# tcache lives INSIDE cache so Render persistent disk (/app/cache) keeps thumbs
+TCACHE = os.path.join(CACHE, "tcache")
 os.makedirs(CACHE, exist_ok=True); os.makedirs(TCACHE, exist_ok=True)
 LOGS = collections.deque(maxlen=80)
 LOCK = threading.Lock()
@@ -75,6 +76,10 @@ def prefetch_part(vid, qual="144", part=0):
 
 def thumb_small(vid, turl):
     out = os.path.join(TCACHE, vid+".jpg")
+    # remember source url so thumb can be rebuilt if cache is wiped
+    if turl:
+        try: open(os.path.join(TCACHE, vid+".url"),"w").write(turl[:300])
+        except: pass
     if os.path.exists(out) and os.path.getsize(out) > 500:
         return True
     try:
@@ -87,6 +92,30 @@ def thumb_small(vid, turl):
         except: pass
         return os.path.exists(out)
     except: return False
+
+PH = os.path.join(TCACHE, "_ph.jpg")
+def placeholder():
+    """solid grey box so phone never shows a broken image icon"""
+    if os.path.exists(PH) and os.path.getsize(PH) > 200: return PH
+    try:
+        run(f'ffmpeg -y -v error -f lavfi -i color=c=0x181818:s=144x81 -frames:v 1 -q:v 14 {shlex.quote(PH)}', 10)
+    except: pass
+    return PH if os.path.exists(PH) else None
+
+def regen_thumb(vid):
+    """rebuild thumb without yt-dlp - url saved at thumb time, else info json"""
+    turl = ""
+    try: turl = open(os.path.join(TCACHE, vid+".url")).read().strip()
+    except: pass
+    if not turl:
+        try:
+            d = json.load(open(os.path.join(CACHE, f"info_{vid}.json")))
+            turl = d.get("thumb") or ""
+        except Exception as e:
+            blog("FAIL<", f"regen thumb {vid} {e}")
+    if turl:
+        blog("FFMPEG>", f"rebuild thumb {vid}")
+        thumb_small(vid, turl)
 
 def ysearch(query, n=8):
     ck = f"{query}|{n}"
@@ -501,17 +530,30 @@ class H(http.server.BaseHTTPRequestHandler):
         if u.path=="/gothumb":
             h = re.sub(r'[^a-f0-9]','', q.get("h",[""])[0])[:12]
             fp = os.path.join(TCACHE, "go_" + h + ".jpg")
-            if not os.path.exists(fp): self.send_response(404); self.end_headers(); return
+            if not (os.path.exists(fp) and os.path.getsize(fp) > 500):
+                ph = placeholder()
+                if ph: return self.serve_file(ph, "image/jpeg")
+                self.send_response(404); self.end_headers(); return
             return self.serve_file(fp, "image/jpeg")
+        if u.path=="/imgthumb":
             h = re.sub(r'[^a-f0-9]','', q.get("h",[""])[0])[:12]
             fp = os.path.join(TCACHE, "img_" + h + ".jpg")
-            if not os.path.exists(fp): self.send_response(404); self.end_headers(); return
+            if not (os.path.exists(fp) and os.path.getsize(fp) > 500):
+                ph = placeholder()
+                if ph: return self.serve_file(ph, "image/jpeg")
+                self.send_response(404); self.end_headers(); return
             return self.serve_file(fp, "image/jpeg")
         if u.path=="/thumb":
             vid = re.sub(r'[^A-Za-z0-9_-]','', q.get("v",[""])[0])[:20]
             fp = os.path.join(TCACHE, vid+".jpg")
-            if not os.path.exists(fp): self.send_response(404); self.end_headers(); return
-            return self.serve_file(fp, "image/jpeg")
+            if os.path.exists(fp) and os.path.getsize(fp) > 500:
+                return self.serve_file(fp, "image/jpeg")
+            # self-heal: rebuild in background, serve placeholder now (never 404/broken)
+            if vid:
+                threading.Thread(target=regen_thumb, args=(vid,), daemon=True).start()
+            ph = placeholder()
+            if ph: return self.serve_file(ph, "image/jpeg")
+            self.send_response(404); self.end_headers(); return
         if u.path=="/watch":
             vid = re.sub(r'[^A-Za-z0-9_-]','', q.get("v",[""])[0])[:20]
             if not vid: return self.send_html(page("Error","<p>No id</p>"))

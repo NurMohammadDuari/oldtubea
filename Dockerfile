@@ -4,6 +4,6 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY dummy-yt.py .
-RUN mkdir -p cache tcache
+RUN mkdir -p cache
 ENV PORT=10000
 CMD ["python3", "dummy-yt.py"]
