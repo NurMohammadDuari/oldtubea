@@ -82,7 +82,7 @@ def thumb_small(vid, turl):
         req = urllib.request.Request(turl, headers={"User-Agent":"Mozilla/5.0"})
         with urllib.request.urlopen(req, timeout=12) as r, open(tmp,"wb") as f:
             f.write(r.read(300000))
-        run_logged("ffmpeg-thumb", f'ffmpeg -y -v error -i {shlex.quote(tmp)} -vf scale=120:-1 -q:v 14 {shlex.quote(out)}', 15)
+        run_logged("ffmpeg-thumb", f'ffmpeg -y -v error -i {shlex.quote(tmp)} -vf scale=144:-1:flags=lanczos,unsharp=5:5:0.8 -q:v 8 {shlex.quote(out)}', 15)
         try: os.remove(tmp)
         except: pass
         return os.path.exists(out)
@@ -141,7 +141,7 @@ def websearch(query, n=8):
     blog("WEB>", f"ddg '{query}'")
     out = []
     try:
-        data = urllib.parse.urlencode({"q": query}).encode()
+        data = urllib.parse.urlencode({"q": query, "kp": "-2"}).encode()  # kp=-2: safe search OFF, no blur/filter
         req = urllib.request.Request("https://html.duckduckgo.com/html/", data=data, headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64)"})
         with urllib.request.urlopen(req, timeout=20) as r:
             html = r.read(400000).decode("utf-8", "ignore")
@@ -177,7 +177,7 @@ def item_html(e):
     dur = e.get("duration") or 0
     try: ds = f"{int(dur)//60}:{int(dur)%60:02d} " if dur else ""
     except: ds = ""
-    return f"""<p><a href="/watch?v={vid}"><img src="/thumb?v={vid}" width="120"/><br/>{title}</a><br/><small>{ds}{ch} {vw}</small></p>"""
+    return f"""<p><a href="/watch?v={vid}"><img src="/thumb?v={vid}" width="144"/><br/>{title}</a><br/><small>{ds}{ch} {vw}</small></p>"""
 
 def do_audio(vid, url, out, key, lock):
     try:
@@ -278,7 +278,7 @@ class H(http.server.BaseHTTPRequestHandler):
                         d = json.load(open(fp))
                         vid = os.path.basename(fp)[5:-5]
                         if len(vid) > 20: continue
-                        b += f"""<p><a href="/watch?v={vid}"><img src="/thumb?v={vid}" width="120"/><br/>{esc(d.get('title','Video'),50)}</a></p>"""
+                        b += f"""<p><a href="/watch?v={vid}"><img src="/thumb?v={vid}" width="144"/><br/>{esc(d.get('title','Video'),50)}</a></p>"""
                     except: pass
             else:
                 b += "<p><small>No history yet. Search below.</small></p>"
@@ -338,7 +338,7 @@ class H(http.server.BaseHTTPRequestHandler):
                 plinks += f'<br/><a href="/v?v={vid}&q=audio">▶ Audio full ({dur_sec//60}min)</a>'
             else:
                 plinks = f'<br/><a href="/v?v={vid}&q=144&p=0">▶ Play 144p 3GP ~1.8MB</a><br/><a href="/v?v={vid}&q=240&p=0">▶ Play 240p 3GP</a><br/><a href="/v?v={vid}&q=audio">▶ Audio</a>'
-            b = f"""<p><b>{esc(info['title'],70)}</b><br/><small>{esc(info['dur'])} {fmt_views(info['views'])}<br/>By <a href="/search?q={urllib.parse.quote(info['channel'])}">{esc(info['channel'],30)}</a></small></p><p><img src="/thumb?v={vid}" width="120"/></p><p>{plinks}</p><p><small>Part1 preloads now - tap it, plays like stream.</small></p><p><small>{esc(info['desc'],200)}</small></p><p><b>Up next:</b></p>"""
+            b = f"""<p><b>{esc(info['title'],70)}</b><br/><small>{esc(info['dur'])} {fmt_views(info['views'])}<br/>By <a href="/search?q={urllib.parse.quote(info['channel'])}">{esc(info['channel'],30)}</a></small></p><p><img src="/thumb?v={vid}" width="144"/></p><p>{plinks}</p><p><small>Part1 preloads now - tap it, plays like stream.</small></p><p><small>{esc(info['desc'],200)}</small></p><p><b>Up next:</b></p>"""
             for e in rel: b += item_html(e)
             return self.send_html(page(info["title"][:40], b))
         if u.path=="/v":
