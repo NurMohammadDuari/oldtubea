@@ -5,8 +5,15 @@ Home feed + Search + Watch + Channel + Related + Description, real via yt-dlp.
 import http.server, urllib.parse, urllib.request, subprocess, os, hashlib, glob, shutil, json, re, time, collections, threading, shlex, concurrent.futures
 
 PORT = int(os.environ.get("PORT", "8081"))
-# optional PIN: OLD_TUBEA_PIN=1234 python3 dummy-yt.py  (protects a public IP deploy)
+# optional PIN, protects a public-IP deploy. Enable either way:
+#   OLD_TUBEA_PIN=1234 python3 dummy-yt.py      (one-off)
+#   echo 1234 > pin.txt                         (persistent, survives restarts)
 PIN = (os.environ.get("OLD_TUBEA_PIN", "") or os.environ.get("PIN", "")).strip()[:24]
+if not PIN:
+    try:
+        PIN = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "pin.txt")).read().strip()[:24]
+    except Exception:
+        PIN = ""
 BASE = os.path.dirname(os.path.abspath(__file__))
 CACHE = os.path.join(BASE, "cache")
 # tcache lives INSIDE cache so Render persistent disk (/app/cache) keeps thumbs

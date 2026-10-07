@@ -7,6 +7,7 @@ __pycache__/
 cache/
 tcache/
 *.url
+pin.txt
 SD_CARD/
 SD_TEST/
 *.log
