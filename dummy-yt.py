@@ -5,6 +5,8 @@ Home feed + Search + Watch + Channel + Related + Description, real via yt-dlp.
 import http.server, urllib.parse, urllib.request, subprocess, os, hashlib, glob, shutil, json, re, time, collections, threading, shlex, concurrent.futures
 
 PORT = int(os.environ.get("PORT", "8081"))
+# optional PIN: OLD_TUBEA_PIN=1234 python3 dummy-yt.py  (protects a public IP deploy)
+PIN = (os.environ.get("OLD_TUBEA_PIN", "") or os.environ.get("PIN", "")).strip()[:24]
 BASE = os.path.dirname(os.path.abspath(__file__))
 CACHE = os.path.join(BASE, "cache")
 # tcache lives INSIDE cache so Render persistent disk (/app/cache) keeps thumbs
@@ -422,11 +424,37 @@ class H(http.server.BaseHTTPRequestHandler):
         if len(d)>18000:  # emergency trim for 1MB phone
             s=d.decode("utf-8", "ignore"); s=re.sub(r'<img[^>]+>', '[img]', s); d=s.encode("utf-8")
         self.send_response(200); self.send_header("Content-Type","text/html; charset=utf-8")
+        if getattr(self, "_set_pin_cookie", False):
+            self.send_header("Set-Cookie", f"k={PIN}; Path=/; HttpOnly; SameSite=Lax")
         self.send_header("Content-Length",str(len(d))); self.end_headers()
         if not self._head_only(): self.wfile.write(d)
 
+    def _pin_ok(self, q):
+        """True when PIN is off, or a valid cookie / ?k= was supplied"""
+        if not PIN: return True
+        ck = ""
+        for part in (self.headers.get("Cookie") or "").split(";"):
+            p = part.strip()
+            if p.startswith("k="): ck = p[2:]
+        if ck == PIN: return True
+        if q.get("k", [""])[0] == PIN:
+            self._set_pin_cookie = True   # remember it for every later page/image/video
+            return True
+        return False
+
+    def _pin_page(self, path):
+        action = esc(path, 60) or "/"
+        return (f'<html><head><meta charset="utf-8"/><meta name="viewport" content="width=240"/>'
+                f'<title>OldTubea</title></head><body><center>'
+                f'<p><b><font color="red">Old</font>Tubea</b></p>'
+                f'<form action="{action}" method="get"><p>PIN<br/>'
+                f'<input name="k" type="password" size="10"/><br/>'
+                f'<input type="submit" value="Open"/></p></form></center></body></html>').encode("utf-8")
+
     def do_GET(self):
         u = urllib.parse.urlparse(self.path); q = urllib.parse.parse_qs(u.query)
+        if not self._pin_ok(q):
+            return self.send_html(self._pin_page(u.path))
         ua = (self.headers.get("User-Agent") or "")[:60]
         is_pc = "Mozilla" in (self.headers.get("User-Agent") or "") and "Mobile" not in ua
         blog("PHONE>" if not is_pc and u.path!="/pc" else "PC>", f"{u.path}?{urllib.parse.urlparse(self.path).query}"[:100] + f" | {ua}")
