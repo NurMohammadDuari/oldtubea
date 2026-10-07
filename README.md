@@ -30,12 +30,13 @@ Auto-refresh 3s. Shows PHONE> taps, YTDLP> search/info/download, FFMPEG> thumb/v
 ## Run live (every time)
 ```
 cd ~/Desktop/oldtubea
-python3 dummy-yt.py
-# new terminal:
-./run-dummy.sh
-# copy https://...trycloudflare.com URL
+./start-all.sh        # or tap the OldTubea Desktop icon
 ```
-Open that URL on Itel browser -> `/test` must show OK -> Search -> Watch -> Play 144p.
+It prints the URL to type on the phone (and copies it to clipboard).
+
+**On the phone type the `http://` URL, never `https://`.** The Itel only speaks
+old TLS / plain http. `https://` gives `open page error` because the handshake
+fails before our server is even reached.
 
 ## Rules for 1MB phone
 - Pages auto-trim to <18KB in `dummy-yt.py:send_html`
@@ -61,9 +62,24 @@ Open that URL on Itel browser -> `/test` must show OK -> Search -> Watch -> Play
 
 ## Host on Render.com
 Files `Dockerfile.render:1` + `render.yaml:1` added. GitHub repo `NurMohammadDuari/oldtubea`, Render -> New Web Service -> connect that repo -> Docker, free plan ok. Health `/test`, disk 1GB for `cache/`.
-Limits: free sleeps on idle (first phone tap slow), ephemeral converts redo after restart, request must return fast - ours does (Working page + background thread). TLS cert is modern ECDSA - same Itel warning as Cloudflare: test `/test` on phone, use `http` fallback if `https` gives server error.
+
+**Measured: the Itel CANNOT open Render.** Render's edge only accepts
+TLS1.2 + ECDHE-ECDSA + GCM, and 301-redirects `http` -> `https`:
+
+| handshake | oldtubea.onrender.com | *.trycloudflare.com |
+|---|---|---|
+| TLS 1.0 / 1.1 | rejected (alert 70) | works |
+| `AES128-SHA` (RSA) | rejected (alert 40) | works |
+| `ECDHE-ECDSA-AES128-SHA` (CBC) | rejected (alert 40) | works |
+| `ECDHE-RSA-AES128-SHA` (CBC) | rejected (alert 40) | works |
+| `ECDHE-ECDSA-AES128-GCM-SHA256` | only one allowed | works |
+| plain `http://` | 301 -> https | **200** |
+
+So Render is fine for a PC/modern browser, useless for this phone. The phone
+must use the `http://` tunnel URL. Render free also cold-starts ~13s.
 
 ## Troubleshoot
-- No URL? run-dummy.sh prints new URL each run, old expires.
+- **Phone says `open page error`?** You typed `https://`. Use the `http://` URL from `start-all.sh`. Render/https is not reachable from this phone at all (TLS table above).
+- No URL? `./start-all.sh` prints a new one each run, old expires.
 - Video stops? SD full/FAT32? Use 144p, 3min parts.
 - Search slow? First search 30-60s (yt-dlp), next fast (cache 1h home, 24h info).
