@@ -412,11 +412,18 @@ def do_video(vid, qual, part, url, out, key, lock):
 
 class H(http.server.BaseHTTPRequestHandler):
     def log_message(self,*a): pass
+    def do_HEAD(self):
+        # old phone browsers often probe with HEAD - must not 501
+        self._head = True
+        self.do_GET()
+    def _head_only(self):
+        return getattr(self, "_head", False)
     def send_html(self,d):
         if len(d)>18000:  # emergency trim for 1MB phone
             s=d.decode("utf-8", "ignore"); s=re.sub(r'<img[^>]+>', '[img]', s); d=s.encode("utf-8")
         self.send_response(200); self.send_header("Content-Type","text/html; charset=utf-8")
-        self.send_header("Content-Length",str(len(d))); self.end_headers(); self.wfile.write(d)
+        self.send_header("Content-Length",str(len(d))); self.end_headers()
+        if not self._head_only(): self.wfile.write(d)
 
     def do_GET(self):
         u = urllib.parse.urlparse(self.path); q = urllib.parse.parse_qs(u.query)
@@ -636,11 +643,13 @@ RUN&gt;/DONE&lt; = command + time + result</pre></body></html>"""
                 self.send_header("Accept-Ranges","bytes")
                 self.send_header("Content-Range",f"bytes {st}-{sz-1}/{sz}")
                 self.send_header("Content-Length",str(sz-st)); self.end_headers()
+                if self._head_only(): return
                 with open(fp,"rb") as f: f.seek(st); shutil.copyfileobj(f,self.wfile)
                 return
             self.send_response(200); self.send_header("Content-Type",ct)
             self.send_header("Accept-Ranges","bytes"); self.send_header("Content-Length",str(sz))
             self.end_headers()
+            if self._head_only(): return
             with open(fp,"rb") as f: shutil.copyfileobj(f,self.wfile)
         except: pass
 
